@@ -12,7 +12,21 @@
     #title { font-weight:900; letter-spacing:.08em; font-size:15px; }
     #speed { margin-top:4px; font-size:28px; font-weight:800; }
     #help { position:fixed; left:18px; bottom:16px; color:white; font-size:12px; background:rgba(20,32,24,.32); backdrop-filter:blur(5px); border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:9px 12px; }
-    #reset { position:fixed; right:16px; top:16px; border:0; border-radius:999px; background:rgba(20,32,24,.72); color:white; height:42px; padding:0 16px; font-weight:800; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.16); }
+    .top-actions { position:fixed; right:16px; top:16px; display:flex; gap:8px; }
+    #reset, #settingsBtn { border:0; border-radius:999px; background:rgba(20,32,24,.72); color:white; height:42px; padding:0 16px; font-weight:800; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.16); backdrop-filter:blur(8px); }
+    #settingsBtn { width:42px; padding:0; font-size:21px; }
+    #settingsPanel { position:fixed; inset:0; z-index:20; display:grid; place-items:center; background:rgba(15,25,20,.38); backdrop-filter:blur(5px); opacity:0; pointer-events:none; transition:.18s ease; }
+    #settingsPanel.open { opacity:1; pointer-events:auto; }
+    .settings-card { width:min(380px,calc(100vw - 32px)); border:1px solid rgba(255,255,255,.2); border-radius:22px; background:rgba(31,43,35,.94); color:white; box-shadow:0 24px 70px rgba(0,0,0,.28); padding:20px; transform:translateY(12px) scale(.98); transition:.18s ease; }
+    #settingsPanel.open .settings-card { transform:none; }
+    .settings-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .settings-head h2 { margin:0; font-size:20px; }
+    #closeSettings { width:36px; height:36px; border:0; border-radius:50%; background:rgba(255,255,255,.1); color:white; font-size:20px; cursor:pointer; }
+    .setting { display:grid; grid-template-columns:1fr 120px; align-items:center; gap:14px; min-height:52px; border-top:1px solid rgba(255,255,255,.09); }
+    .setting label { font-size:14px; font-weight:700; }
+    .setting select, .setting input[type="range"] { width:120px; accent-color:#b9d77d; }
+    .setting select { height:36px; border:1px solid rgba(255,255,255,.16); border-radius:8px; background:#26362b; color:white; padding:0 8px; }
+    #qualityValue { margin-left:8px; color:#cdd9c8; font-size:12px; }
     #touch { position:fixed; inset:auto 0 18px 0; display:none; justify-content:space-between; padding:0 18px; pointer-events:none; }
     .group { display:flex; gap:10px; pointer-events:auto; }
     .btn { width:68px; height:68px; border-radius:50%; border:2px solid rgba(255,255,255,.65); background:rgba(25,38,30,.48); color:white; font-size:24px; backdrop-filter:blur(5px); touch-action:none; }
@@ -22,8 +36,16 @@
 <body>
   <canvas id="game"></canvas>
   <div id="hud"><div id="title">PLAIN ROADS</div><div id="speed">0 KM/H</div></div>
-  <button id="reset">RESET</button>
+  <div class="top-actions"><button id="reset">RESET</button><button id="settingsBtn" aria-label="Open settings" title="Settings">⚙</button></div>
   <div id="help">WASD / ARROWS — DRIVE &nbsp;·&nbsp; R — RESET</div>
+  <div id="settingsPanel" aria-hidden="true">
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="settings-head"><h2 id="settingsTitle">Settings</h2><button id="closeSettings" aria-label="Close settings">×</button></div>
+      <div class="setting"><label for="quality">Graphics quality</label><select id="quality"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
+      <div class="setting"><label for="shadows">Shadows</label><select id="shadows"><option value="off">Off</option><option value="on" selected>On</option></select></div>
+      <div class="setting"><label for="cameraDistance">Camera distance <span id="qualityValue"></span></label><input id="cameraDistance" type="range" min="7" max="16" value="10"></div>
+    </div>
+  </div>
   <div id="touch"><div class="group"><button class="btn" data-key="ArrowLeft">◀</button><button class="btn" data-key="ArrowRight">▶</button></div><div class="group"><button class="btn" data-key="ArrowDown">▼</button><button class="btn" data-key="ArrowUp">▲</button></div></div>
 
 <script type="module">
@@ -108,6 +130,28 @@ function reset(){pos.set(0,0,18);heading=0;speed=0}
 reset();
 
 document.querySelector('#reset').onclick=reset;
+
+const settingsPanel=document.querySelector('#settingsPanel');
+const openSettings=()=>{settingsPanel.classList.add('open');settingsPanel.setAttribute('aria-hidden','false')};
+const closeSettings=()=>{settingsPanel.classList.remove('open');settingsPanel.setAttribute('aria-hidden','true')};
+document.querySelector('#settingsBtn').onclick=openSettings;
+document.querySelector('#closeSettings').onclick=closeSettings;
+settingsPanel.addEventListener('pointerdown',e=>{if(e.target===settingsPanel)closeSettings()});
+addEventListener('keydown',e=>{if(e.code==='Escape')closeSettings()});
+
+let cameraDistance=10;
+document.querySelector('#cameraDistance').addEventListener('input',e=>{cameraDistance=Number(e.target.value);document.querySelector('#qualityValue').textContent=cameraDistance+'m'});
+document.querySelector('#qualityValue').textContent=cameraDistance+'m';
+document.querySelector('#quality').addEventListener('change',e=>{
+ const quality=e.target.value;
+ renderer.setPixelRatio(quality==='low'?1:quality==='medium'?Math.min(devicePixelRatio,1.5):Math.min(devicePixelRatio,2));
+ resize();
+});
+document.querySelector('#shadows').addEventListener('change',e=>{
+ renderer.shadowMap.enabled=e.target.value==='on';
+ scene.traverse(o=>{if(o.isMesh)o.castShadow=e.target.value==='on'&&o!==ground});
+});
+
 document.querySelectorAll('.btn').forEach(b=>{
  const k=b.dataset.key;
  b.addEventListener('pointerdown',e=>{e.preventTarget?.();e.preventDefault();keys[k]=true;b.setPointerCapture(e.pointerId)});
@@ -125,7 +169,7 @@ function animate(){
  pos.x+=Math.sin(heading)*speed*dt; pos.z+=Math.cos(heading)*speed*dt;
  pos.x=Math.max(-125,Math.min(125,pos.x));pos.z=Math.max(-125,Math.min(125,pos.z));
  car.position.copy(pos);car.rotation.y=heading;
- const behind=new THREE.Vector3(-Math.sin(heading)*10,6,-Math.cos(heading)*10).add(pos);
+ const behind=new THREE.Vector3(-Math.sin(heading)*cameraDistance,Math.max(5,cameraDistance*.6),-Math.cos(heading)*cameraDistance).add(pos);
  camera.position.lerp(behind,1-Math.pow(.002,dt));
  const look=new THREE.Vector3(pos.x,1.2,pos.z).add(new THREE.Vector3(Math.sin(heading)*4,0,Math.cos(heading)*4));
  camera.lookAt(look);

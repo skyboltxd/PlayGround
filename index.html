@@ -11,6 +11,7 @@
     #hud { position:fixed; left:18px; top:18px; color:white; text-shadow:0 2px 5px rgba(0,0,0,.55); pointer-events:none; }
     #title { font-weight:900; letter-spacing:.08em; font-size:15px; }
     #speed { margin-top:4px; font-size:28px; font-weight:800; }
+    #gearDisplay { margin-top:-3px; font-size:12px; font-weight:800; letter-spacing:.12em; }
     #help { position:fixed; left:18px; bottom:16px; color:white; font-size:12px; background:rgba(20,32,24,.32); backdrop-filter:blur(5px); border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:9px 12px; }
     .top-actions { position:fixed; right:16px; top:16px; display:flex; gap:8px; }
     #reset, #settingsBtn { border:0; border-radius:999px; background:rgba(20,32,24,.72); color:white; height:42px; padding:0 16px; font-weight:800; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,.16); backdrop-filter:blur(8px); }
@@ -36,14 +37,16 @@
     #touch { position:fixed; inset:auto 0 18px 0; display:none; justify-content:space-between; padding:0 18px; pointer-events:none; }
     .group { display:flex; gap:10px; pointer-events:auto; }
     .btn { width:68px; height:68px; border-radius:50%; border:2px solid rgba(255,255,255,.65); background:rgba(25,38,30,.48); color:white; font-size:24px; backdrop-filter:blur(5px); touch-action:none; }
+    .shift-stack { display:flex; flex-direction:column; gap:6px; justify-content:center; }
+    .shift-btn { width:52px; height:30px; border:1px solid rgba(255,255,255,.55); border-radius:9px; background:rgba(25,38,30,.55); color:white; font-size:10px; font-weight:900; touch-action:manipulation; }
     @media (pointer:coarse) { #touch { display:flex; } #help { display:none; } }
   </style>
 </head>
 <body>
   <canvas id="game"></canvas>
-  <div id="hud"><div id="title">PLAIN ROADS</div><div id="speed">0 KM/H</div></div>
+  <div id="hud"><div id="title">PLAIN ROADS</div><div id="speed">0 KM/H</div><div id="gearDisplay">GEAR 1</div></div>
   <div class="top-actions"><button id="reset">RESET</button><button id="settingsBtn" aria-label="Open settings" title="Settings">⚙</button></div>
-  <div id="help">WASD / ARROWS — DRIVE &nbsp;·&nbsp; R — RESET</div>
+  <div id="help">WASD / ARROWS — DRIVE &nbsp;·&nbsp; Q / E — SHIFT &nbsp;·&nbsp; R — RESET</div>
   <div id="settingsPanel" aria-hidden="true">
     <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="settings-head"><h2 id="settingsTitle">Settings</h2><button id="closeSettings" aria-label="Close settings">×</button></div>
@@ -62,7 +65,7 @@
       </div>
     </div>
   </div>
-  <div id="touch"><div class="group"><button class="btn" data-key="ArrowLeft">◀</button><button class="btn" data-key="ArrowRight">▶</button></div><div class="group"><button class="btn" data-key="ArrowDown">▼</button><button class="btn" data-key="ArrowUp">▲</button></div></div>
+  <div id="touch"><div class="group"><button class="btn" data-key="ArrowLeft">◀</button><button class="btn" data-key="ArrowRight">▶</button></div><div class="shift-stack"><button class="shift-btn" data-shift="up">SHIFT +</button><button class="shift-btn" data-shift="down">SHIFT −</button></div><div class="group"><button class="btn" data-key="ArrowDown">▼</button><button class="btn" data-key="ArrowUp">▲</button></div></div>
 
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js';
@@ -117,7 +120,7 @@ function tree(x,z,s=1){
 for(let i=0;i<110;i++){
  let x=(Math.random()-.5)*220,z=(Math.random()-.5)*220;
  if(Math.abs(x)<8||Math.abs(z)<8||Math.abs(Math.abs(x)-75)<7||Math.abs(Math.abs(z)-65)<7||Math.abs(z-70)<7)continue;
- tree(x,z,.7+Math.random*.55);
+ tree(x,z,.7+Math.random()*.55);
 }
 
 // Small roadside buildings
@@ -139,10 +142,24 @@ for(const x of [-1.05,1.05]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.5,
 scene.add(car);
 
 let pos=new THREE.Vector3(0,0,18),heading=0,speed=0;
+let gear=2; // Reverse, neutral, then five forward gears.
+const gearNames=['R','N','1','2','3','4','5'];
+const gearMaxSpeed=[7,0,8,12,17,23,30];
+const gearAcceleration=[8,0,9,7,5.5,4,3.2];
+const gearDisplay=document.querySelector('#gearDisplay');
 const keys={};
-addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyR')reset()});
+function setGear(next){
+ gear=Math.max(0,Math.min(6,next));
+ gearDisplay.textContent='GEAR '+gearNames[gear];
+}
+addEventListener('keydown',e=>{
+ keys[e.code]=true;
+ if(e.code==='KeyR')reset();
+ if(!e.repeat&&e.code==='KeyQ')setGear(gear-1);
+ if(!e.repeat&&e.code==='KeyE')setGear(gear+1);
+});
 addEventListener('keyup',e=>{keys[e.code]=false});
-function reset(){pos.set(0,0,18);heading=0;speed=0}
+function reset(){pos.set(0,0,18);heading=0;speed=0;setGear(2)}
 reset();
 
 document.querySelector('#reset').onclick=reset;
@@ -188,23 +205,34 @@ document.querySelector('#hudOpacity').addEventListener('input',e=>{
 
 document.querySelectorAll('.btn').forEach(b=>{
  const k=b.dataset.key;
- b.addEventListener('pointerdown',e=>{e.preventTarget?.();e.preventDefault();keys[k]=true;b.setPointerCapture(e.pointerId)});
+ b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;b.setPointerCapture(e.pointerId)});
  b.addEventListener('pointerup',()=>keys[k]=false);b.addEventListener('pointercancel',()=>keys[k]=false);
 });
+document.querySelectorAll('.shift-btn').forEach(b=>b.addEventListener('click',()=>setGear(gear+(b.dataset.shift==='up'?1:-1))));
 
 const clock=new THREE.Clock();
 function animate(){
  requestAnimationFrame(animate); const dt=Math.min(clock.getDelta(),.05);
- const throttle=(keys.ArrowUp||keys.KeyW?1:0)-(keys.ArrowDown||keys.KeyS?1:0);
- if(throttle){
-  const braking=Math.abs(speed)>.2&&Math.sign(speed)!==throttle;
-  speed+=throttle*(braking?24:18)*dt;
+ const accelerate=keys.ArrowUp||keys.KeyW;
+ const brake=keys.ArrowDown||keys.KeyS;
+ const driveDirection=gear===0?-1:gear===1?0:1;
+ if(brake&&Math.abs(speed)>.02){
+  const braking=Math.min(Math.abs(speed),28*dt);
+  speed-=Math.sign(speed)*braking;
+ } else if(accelerate&&driveDirection!==0){
+  const motionInGear=speed*driveDirection;
+  if(motionInGear<0){
+   speed+=driveDirection*Math.min(Math.abs(speed),26*dt);
+  } else if(motionInGear<gearMaxSpeed[gear]){
+   speed+=driveDirection*gearAcceleration[gear]*dt;
+   if(speed*driveDirection>gearMaxSpeed[gear])speed=driveDirection*gearMaxSpeed[gear];
+  }
  }
  // Rolling resistance and air drag let the car coast, then gradually slow.
  speed*=Math.exp(-.16*dt);
  speed-=Math.sign(speed)*speed*speed*.0005*dt;
  if(Math.abs(speed)<.035)speed=0;
- speed=Math.max(-9,Math.min(24,speed));
+ speed=Math.max(-7,Math.min(30,speed));
  const turn=(keys.ArrowLeft||keys.KeyA?1:0)-(keys.ArrowRight||keys.KeyD?1:0);
  if(Math.abs(speed)>.25) heading+=turn*Math.min(1.5,Math.abs(speed)/8)*dt*Math.sign(speed);
  pos.x+=Math.sin(heading)*speed*dt; pos.z+=Math.cos(heading)*speed*dt;

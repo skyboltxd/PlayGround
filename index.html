@@ -25,6 +25,7 @@
     .setting { display:grid; grid-template-columns:1fr 120px; align-items:center; gap:14px; min-height:52px; border-top:1px solid rgba(255,255,255,.09); }
     .setting label { font-size:14px; font-weight:700; }
     .setting select, .setting input[type="range"] { width:120px; accent-color:#b9d77d; }
+    .setting input[type="checkbox"] { width:18px; height:18px; justify-self:end; accent-color:#b9d77d; cursor:pointer; }
     .setting select { height:36px; border:1px solid rgba(255,255,255,.16); border-radius:8px; background:#26362b; color:white; padding:0 8px; }
     #qualityValue { margin-left:8px; color:#cdd9c8; font-size:12px; }
     #touch { position:fixed; inset:auto 0 18px 0; display:none; justify-content:space-between; padding:0 18px; pointer-events:none; }
@@ -44,6 +45,10 @@
       <div class="setting"><label for="quality">Graphics quality</label><select id="quality"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
       <div class="setting"><label for="shadows">Shadows</label><select id="shadows"><option value="off">Off</option><option value="on" selected>On</option></select></div>
       <div class="setting"><label for="cameraDistance">Camera distance <span id="qualityValue"></span></label><input id="cameraDistance" type="range" min="7" max="16" value="10"></div>
+      <div class="setting"><label for="hudTitle">HUD title</label><input id="hudTitle" type="checkbox" checked></div>
+      <div class="setting"><label for="hudSpeed">Speedometer</label><input id="hudSpeed" type="checkbox" checked></div>
+      <div class="setting"><label for="hudHelp">Controls help</label><input id="hudHelp" type="checkbox" checked></div>
+      <div class="setting"><label for="hudOpacity">HUD opacity</label><input id="hudOpacity" type="range" min="20" max="100" value="100"></div>
     </div>
   </div>
   <div id="touch"><div class="group"><button class="btn" data-key="ArrowLeft">◀</button><button class="btn" data-key="ArrowRight">▶</button></div><div class="group"><button class="btn" data-key="ArrowDown">▼</button><button class="btn" data-key="ArrowUp">▲</button></div></div>
@@ -150,6 +155,19 @@ document.querySelector('#quality').addEventListener('change',e=>{
 document.querySelector('#shadows').addEventListener('change',e=>{
  renderer.shadowMap.enabled=e.target.value==='on';
  scene.traverse(o=>{if(o.isMesh)o.castShadow=e.target.value==='on'&&o!==ground});
+});
+
+const hud=document.querySelector('#hud');
+const hudTitle=document.querySelector('#title');
+const hudSpeed=document.querySelector('#speed');
+const help=document.querySelector('#help');
+document.querySelector('#hudTitle').addEventListener('change',e=>{hudTitle.style.display=e.target.checked?'':'none'});
+document.querySelector('#hudSpeed').addEventListener('change',e=>{hudSpeed.style.display=e.target.checked?'':'none'});
+document.querySelector('#hudHelp').addEventListener('change',e=>{help.style.display=e.target.checked?'':'none'});
+document.querySelector('#hudOpacity').addEventListener('input',e=>{
+ const opacity=Number(e.target.value)/100;
+ hud.style.opacity=opacity;
+ help.style.opacity=opacity;
 });
 
 document.querySelectorAll('.btn').forEach(b=>{

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Vice Drive — Open World</title>
+  <style>
+    *{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#68b5db;font-family:Arial,sans-serif;touch-action:none} canvas{display:block;width:100%;height:100%}
+    #hud{position:fixed;inset:0;pointer-events:none;color:white;text-shadow:2px 2px 2px #111} #brand{position:absolute;top:18px;left:22px;font-weight:900;font-size:23px;letter-spacing:-1px;font-style:italic;transform:skew(-7deg)}
+    #brand span{color:#ff4f9a} #money{position:absolute;top:48px;left:24px;font-size:19px;color:#72e8a8} #wanted{position:absolute;top:18px;right:24px;font-size:23px;letter-spacing:4px;color:#8a8a8a} #wanted.hot{color:#ff3e55}
+    #mission{position:absolute;left:24px;bottom:118px;background:linear-gradient(90deg,rgba(10,14,25,.86),rgba(10,14,25,.32));border-left:4px solid #ffcf4a;padding:10px 14px 10px 12px;border-radius:3px;min-width:230px} #mission b{display:block;color:#ffcf4a;font-size:12px;letter-spacing:1px;margin-bottom:4px} #mission span{font-size:15px}
+    #minimap{position:absolute;right:22px;bottom:22px;width:180px;height:180px;border:3px solid rgba(255,255,255,.85);border-radius:50%;overflow:hidden;background:rgba(30,54,55,.78);box-shadow:0 4px 18px #0006} #mapCanvas{width:100%;height:100%}
+    #speed{position:absolute;right:49px;bottom:49px;width:125px;text-align:center;font-size:32px;font-weight:900;color:#fff} #speed small{display:block;font-size:12px;color:#ddd}
+    #crosshair{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2px;border-radius:50%;background:#fff9;display:none}
+    #prompt{position:absolute;left:50%;bottom:95px;transform:translateX(-50%);padding:9px 15px;border-radius:20px;background:#111c;color:#fff;font-size:14px;display:none}
+    #start{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e97da3aa,#49b9e5aa);backdrop-filter:blur(3px);pointer-events:auto} #card{width:min(520px,85vw);text-align:center;color:#fff;text-shadow:2px 2px 3px #222} #card h1{font-size:64px;line-height:.78;margin:0 0 28px;font-style:italic;transform:skew(-8deg)} #card h1 em{display:block;font-size:21px;color:#ffe27b;font-style:normal;margin-top:14px;letter-spacing:5px} #card p{font-size:16px;margin:7px} #play{margin-top:20px;border:0;border-radius:30px;background:#ffcf4a;color:#17213c;font-weight:900;font-size:18px;padding:15px 38px;cursor:pointer;box-shadow:0 5px 0 #d59428}
+    #mobile{display:none;position:absolute;inset:0;pointer-events:none} .stick{position:absolute;left:20px;bottom:28px;width:120px;height:120px;border:2px solid #fff7;border-radius:50%;pointer-events:auto;background:#1113} .stick:after{content:'•';position:absolute;left:42px;top:24px;width:36px;height:36px;border-radius:50%;background:#fff8;color:transparent} .action{position:absolute;right:25px;bottom:210px;width:72px;height:72px;border:2px solid #fff9;border-radius:50%;background:#ffcf4aaa;color:#fff;font-weight:bold;pointer-events:auto} #brake{right:25px;bottom:125px} #go{right:25px;bottom:45px}
+    @media(pointer:coarse),(max-width:700px){#mobile{display:block}#mission{bottom:205px}#minimap{width:135px;height:135px}#speed{right:34px;bottom:20px;font-size:24px}#brand{font-size:19px}}
+  </style>
+</head>
+<body>
+  <div id="hud"><div id="brand">VICE <span>DRIVE</span></div><div id="money">$000250</div><div id="wanted">☆☆☆☆☆</div><div id="crosshair"></div><div id="prompt">Press E to enter</div>
+    <div id="mission"><b>MISSION 1 — THE JOB</b><span>Get in a car</span></div><div id="minimap"><canvas id="mapCanvas"></canvas></div><div id="speed"><b id="mph">0</b><small>MPH</small></div>
+  </div>
+  <div id="start"><div id="card"><h1>VICE<br>DRIVE<em>NEON DISTRICT</em></h1><p>Explore the city • steal cars • outrun the law</p><p><b>WASD</b> move/drive • <b>E</b> enter/exit • <b>F</b> horn • <b>Shift</b> sprint</p><button id="play">START ENGINE</button></div></div>
+  <div id="mobile"><div class="stick" id="stick"></div><button class="action" id="brake">BRAKE</button><button class="action" id="go">GO</button></div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x76c2e7); scene.fog=new THREE.Fog(0x76c2e7,80,210);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,500);
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; document.body.prepend(renderer.domElement);
+const hemi=new THREE.HemisphereLight(0xcceeff,0x4d6635,2.2); scene.add(hemi); const sun=new THREE.DirectionalLight(0xffe4b0,2.8); sun.position.set(-60,100,40); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024); sun.shadow.camera.left=sun.shadow.camera.bottom=-120; sun.shadow.camera.right=sun.shadow.camera.top=120; scene.add(sun);
+
+const world=new THREE.Group(); scene.add(world);
+const mat=(c,rough=1)=>new THREE.MeshStandardMaterial({color:c,roughness:rough});
+// ocean and island
+const sea=new THREE.Mesh(new THREE.PlaneGeometry(800,800),mat(0x168ac0,.3)); sea.rotation.x=-Math.PI/2; sea.position.y=-2; scene.add(sea);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(240,240),mat(0x6c9c55)); ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+
+const buildings=[];
+function box(x,y,z,w,h,d,c,details=true){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c));m.position.set(x,y+h/2,z);m.castShadow=m.receiveShadow=true;world.add(m);buildings.push(m);if(details&&w>8&&h>12){for(let yy=5;yy<h-2;yy+=5)for(let xx=-w/2+2;xx<w/2-1;xx+=4){const win=new THREE.Mesh(new THREE.BoxGeometry(1.7,2.2,.12),mat(Math.random()<.35?0xffd67a:0x58a6b8,.2));win.position.set(x+xx,yy,z+d/2+.07);world.add(win)}}return m}
+// roads grid
+for(let i=-100;i<=100;i+=20){const r=new THREE.Mesh(new THREE.PlaneGeometry(240,12),mat(0x34383a));r.rotation.x=-Math.PI/2;r.position.set(0,.02,i);r.receiveShadow=true;scene.add(r);const r2=new THREE.Mesh(new THREE.PlaneGeometry(12,240),mat(0x34383a));r2.rotation.x=-Math.PI/2;r2.position.set(i,.021,0);scene.add(r2);for(let j=-110;j<=110;j+=10){const dash=new THREE.Mesh(new THREE.PlaneGeometry(.18,3),mat(0xe8cf73));dash.rotation.x=-Math.PI/2;dash.position.set(j,.03,i);scene.add(dash);const dash2=dash.clone();dash2.position.set(i,.031,j);scene.add(dash2)}}
+// skyline and blocks
+for(let bx=-90;bx<=90;bx+=20)for(let bz=-90;bz<=90;bz+=20){if(Math.abs(bx%40)<2||Math.abs(bz%40)<2)continue;const w=10+Math.random()*4,d=10+Math.random()*4,h=12+Math.random()*28;box(bx+(Math.random()*3-1.5),0,bz+(Math.random()*3-1.5),w,h,d,[0x8a9aaa,0xb5a68c,0x6f8792,0xd0bb98][Math.floor(Math.random()*4)])}
+// beach / palm cluster
+for(let i=-110;i<-45;i+=7){const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.25,.4,5,7),mat(0x8d6339));trunk.position.set(i,2.5,-106);trunk.rotation.z=(Math.random()-.5)*.15;scene.add(trunk);for(let k=0;k<7;k++){const leaf=new THREE.Mesh(new THREE.ConeGeometry(.5,4,5),mat(0x39934b));leaf.position.set(i+Math.cos(k)*1.8,6+Math.sin(k)*.5,-106+Math.sin(k)*1.8);leaf.rotation.z=Math.PI/2.8;leaf.rotation.y=k;scene.add(leaf)}}
+// cars
+const cars=[];
+function makeCar(x,z,color,angle=0){const g=new THREE.Group();const body=new THREE.Mesh(new THREE.BoxGeometry(4.2,1.15,7.6),mat(color,.35));body.position.y=1.25;body.castShadow=true;g.add(body);const cabin=new THREE.Mesh(new THREE.BoxGeometry(3.5,1.35,4),mat(0x183349,.15));cabin.position.set(0,2.25,-.25);cabin.castShadow=true;g.add(cabin);for(const sx of [-2.15,2.15])for(const sz of [-2.35,2.35]){const wh=new THREE.Mesh(new THREE.CylinderGeometry(.85,.85,.55,12),mat(0x171717));wh.rotation.z=Math.PI/2;wh.position.set(sx,.8,sz);g.add(wh)}g.position.set(x,.1,z);g.rotation.y=angle;scene.add(g);return g}
+for(let i=0;i<14;i++){const road=([-100,-80,-60,-40,-20,0,20,40,60,80,100][i%11]);cars.push(makeCar(road+(i%2?3:-3),-70+((i*37)%140),[0xf4ca49,0xe85a60,0x4aa0dd,0xf0efe8,0x23272d][i%5],i%2?Math.PI/2:0))}
+// player
+const player=new THREE.Mesh(new THREE.CapsuleGeometry(.65,1.8,5,8),mat(0xffc8a2));player.castShadow=true;player.position.set(0,1.55,9);scene.add(player);const playerHat=new THREE.Mesh(new THREE.CylinderGeometry(.75,.75,.25,12),mat(0x202838));playerHat.position.y=1.15;player.add(playerHat);
+
+let keys={},driving=false,currentCar=null,yaw=0,pitch=-.12,wanted=0,money=250,mission=0,lastHit=0;
+addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyE')toggleCar();if(e.code==='KeyF'&&currentCar){} if(e.code==='Escape')document.exitPointerLock?.()});addEventListener('keyup',e=>keys[e.code]=false);
+renderer.domElement.addEventListener('click',()=>{if(driving&&matchMedia('(pointer:fine)').matches)renderer.domElement.requestPointerLock()});
+addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement||driving){yaw-=e.movementX*.002;pitch-=e.movementY*.0015;pitch=Math.max(-.55,Math.min(.35,pitch))}});
+function toggleCar(){if(driving){player.position.copy(currentCar.position).add(new THREE.Vector3(3,1.5,0));driving=false;currentCar=null;document.exitPointerLock?.()}else{let close=null,dist=9;for(const c of cars){const d=c.position.distanceTo(player.position);if(d<dist){dist=d;close=c}}if(close){driving=true;currentCar=close;crosshair.style.display='block';mission=1;missionText('THE JOB','Reach the pink marker');renderer.domElement.requestPointerLock?.()}}}
+const crosshair=document.getElementById('crosshair'),prompt=document.getElementById('prompt'),missionEl=document.querySelector('#mission span'),missionTitle=document.querySelector('#mission b');
+function missionText(title,text){missionTitle.textContent='MISSION 1 — '+title;missionEl.textContent=text}
+let touchX=0,touchY=0;
+const stick=document.getElementById('stick');stick.addEventListener('pointerdown',e=>stick.setPointerCapture(e.pointerId));stick.addEventListener('pointermove',e=>{const r=stick.getBoundingRect();touchX=(e.clientX-(r.left+r.width/2))/60;touchY=(e.clientY-(r.top+r.height/2))/60});stick.addEventListener('pointerup',()=>{touchX=touchY=0});
+let touchGo=false,touchBrake=false;const go=document.getElementById('go'),brake=document.getElementById('brake');for(const [el,vn] of [[go,'touchGo'],[brake,'touchBrake']]){el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);window[vn]=true});el.addEventListener('pointerup',()=>window[vn]=false)}
+
+const marker=new THREE.Mesh(new THREE.TorusGeometry(3,0.35,10,32),mat(0xff70b4));marker.position.set(62,.5,-80);marker.rotation.x=Math.PI/2;scene.add(marker);
+const clock=new THREE.Clock();let speed=0;
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);marker.rotation.z+=dt;
+ if(driving){const car=currentCar;let accel=0;if(keys.KeyW||touchGo)accel=1;if(keys.KeyS||touchBrake)accel=-1;speed+=accel*20*dt;speed*=Math.pow(.985,dt*60);speed=Math.max(-12,Math.min(42,speed));const steer=(keys.KeyA?-1:0)+(keys.KeyD?1:0)+(touchX<-.15?-1:0)+(touchX>.15?1:0);car.rotation.y+=steer*speed*.018*dt*5;if(Math.abs(speed)>1)car.position.x+=-Math.sin(car.rotation.y)*speed*dt;car.position.z+=-Math.cos(car.rotation.y)*speed*dt;player.position.copy(car.position);car.position.x=Math.max(-112,Math.min(112,car.position.x));car.position.z=Math.max(-112,Math.min(112,car.position.z));camera.position.lerp(new THREE.Vector3(car.position.x+Math.sin(yaw)*12,7+pitch*10,car.position.z+Math.cos(yaw)*12),.12);camera.lookAt(car.position.x,1.5,car.position.z);document.getElementById('mph').textContent=Math.round(Math.abs(speed)*2)}
+ else{const forward=(keys.KeyW?1:0)-(keys.KeyS?1:0)+(touchY<-.15?1:0)-(touchY>.15?1:0);const strafe=(keys.KeyD?1:0)-(keys.KeyA?1:0)+(touchX>.15?1:0)-(touchX<-.15?1:0);const len=Math.hypot(forward,strafe);if(len){const sp=(keys.ShiftLeft?12:7)*dt;player.position.x+=((Math.cos(yaw)*strafe+Math.sin(yaw)*forward)*sp);player.position.z+=((-Math.sin(yaw)*strafe+Math.cos(yaw)*forward)*sp);player.rotation.y=Math.atan2(strafe,forward)+yaw}player.position.x=Math.max(-112,Math.min(112,player.position.x));player.position.z=Math.max(-112,Math.min(112,player.position.z));camera.position.lerp(new THREE.Vector3(player.position.x-Math.sin(yaw)*6,4.2,player.position.z-Math.cos(yaw)*6),.16);camera.lookAt(player.position.x+Math.sin(yaw)*10,2.2,player.position.z+Math.cos(yaw)*10);document.getElementById('mph').textContent='0';let close=false;for(const c of cars)if(c.position.distanceTo(player.position)<5)close=true;prompt.style.display=close&&!driving?'block':'none'}
+ // mission marker check
+ if(driving&&currentCar.position.distanceTo(marker.position)<7){money+=2500;mission=2;marker.visible=false;missionText('THE JOB','Cash collected! Find another ride');wanted=Math.min(5,wanted+1);document.getElementById('wanted').className='hot';document.getElementById('wanted').textContent='★'.repeat(wanted)+'☆'.repeat(5-wanted);document.querySelector('#money').textContent='$'+String(money).padStart(6,'0')}
+ drawMap();renderer.render(scene,camera)}
+
+const map=document.getElementById('mapCanvas'),mctx=map.getContext('2d');function drawMap(){const dpr=devicePixelRatio;const w=180,h=180;if(map.width!==w*dpr){map.width=w*dpr;map.height=h*dpr}mctx.setTransform(dpr,0,0,dpr,0,0);mctx.clearRect(0,0,w,h);mctx.fillStyle='#356b63';mctx.fillRect(0,0,w,h);mctx.strokeStyle='#596165';mctx.lineWidth=7;for(let p=10;p<180;p+=25){mctx.beginPath();mctx.moveTo(p,0);mctx.lineTo(p,180);mctx.stroke();mctx.beginPath();mctx.moveTo(0,p);mctx.lineTo(180,p);mctx.stroke()}const pos=driving?currentCar.position:player.position;const px=90+pos.x*.6,pz=90+pos.z*.6;mctx.fillStyle='#ff70b4';mctx.beginPath();mctx.arc(90+marker.position.x*.6,90+marker.position.z*.6,4,0,7);mctx.fill();mctx.save();mctx.translate(px,pz);mctx.rotate(driving?-currentCar.rotation.y:-yaw);mctx.fillStyle='#fff';mctx.beginPath();mctx.moveTo(0,-7);mctx.lineTo(5,6);mctx.lineTo(-5,6);mctx.closePath();mctx.fill();mctx.restore()}
+
+document.getElementById('play').onclick=()=>{document.getElementById('start').style.display='none';drawMap()};addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});animate();
+</script>
+</body>
+</html>

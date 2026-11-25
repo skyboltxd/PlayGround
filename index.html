@@ -110,18 +110,45 @@ road(0,-65,260,7); road(0,70,260,7);
 // Road markings / dashes
 for(let z=-120;z<120;z+=12){ if(Math.abs(z)>4){const s=new THREE.Mesh(new THREE.PlaneGeometry(.16,5),new THREE.MeshBasicMaterial({color:'#e9e5ca'})); s.rotation.x=-Math.PI/2;s.position.set(0,.019,z);scene.add(s)} }
 
-function tree(x,z,s=1){
- const g=new THREE.Group();
- const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.18*s,.28*s,1.8*s,7),new THREE.MeshStandardMaterial({color:'#6d5034'})); trunk.position.y=.9*s; trunk.castShadow=true; g.add(trunk);
- const mat=new THREE.MeshStandardMaterial({color:Math.random()>.5?'#557d3a':'#668e43',roughness:1});
- for(let i=0;i<3;i++){const crown=new THREE.Mesh(new THREE.ConeGeometry((1.4-i*.18)*s,(2.2-i*.2)*s,8),mat);crown.position.y=(2+i*.8)*s;crown.castShadow=true;g.add(crown)}
- g.position.set(x,0,z);scene.add(g);
-}
-for(let i=0;i<110;i++){
- let x=(Math.random()-.5)*220,z=(Math.random()-.5)*220;
+// Batch the scenery with instancing: hundreds of tree parts become just two draw calls.
+const treeCount=110;
+const trunkInstances=new THREE.InstancedMesh(
+ new THREE.CylinderGeometry(.18,.28,1.8,7),
+ new THREE.MeshStandardMaterial({color:'#6d5034',roughness:1}),
+ treeCount
+);
+const foliageInstances=new THREE.InstancedMesh(
+ new THREE.ConeGeometry(1,1,8),
+ new THREE.MeshStandardMaterial({color:'#fff',roughness:1}),
+ treeCount*3
+);
+const treeTransform=new THREE.Object3D();
+const foliageColor=new THREE.Color();
+let foliageIndex=0,placedTrees=0,placementAttempts=0;
+while(placedTrees<treeCount&&placementAttempts<treeCount*20){
+ placementAttempts++;
+ const x=(Math.random()-.5)*220,z=(Math.random()-.5)*220;
  if(Math.abs(x)<8||Math.abs(z)<8||Math.abs(Math.abs(x)-75)<7||Math.abs(Math.abs(z)-65)<7||Math.abs(z-70)<7)continue;
- tree(x,z,.7+Math.random()*.55);
+ const scale=.7+Math.random()*.55;
+ treeTransform.position.set(x,.9*scale,z);
+ treeTransform.scale.setScalar(scale);
+ treeTransform.updateMatrix();
+ trunkInstances.setMatrixAt(placedTrees,treeTransform.matrix);
+ foliageColor.set(Math.random()>.5?'#557d3a':'#668e43');
+ for(let tier=0;tier<3;tier++){
+  const radius=(1.4-tier*.18)*scale,height=(2.2-tier*.2)*scale;
+  treeTransform.position.set(x,(2+tier*.8)*scale,z);
+  treeTransform.scale.set(radius,height,radius);
+  treeTransform.updateMatrix();
+  foliageInstances.setMatrixAt(foliageIndex,treeTransform.matrix);
+  foliageInstances.setColorAt(foliageIndex,foliageColor);
+  foliageIndex++;
+ }
+ placedTrees++;
 }
+trunkInstances.castShadow=true;
+foliageInstances.castShadow=true;
+scene.add(trunkInstances,foliageInstances);
 
 // Small roadside buildings
 function building(x,z,c){
@@ -135,8 +162,12 @@ building(-30,-28,'#ddd2b3'); building(31,-28,'#a9bdba'); building(-31,28,'#c8ae8
 const car=new THREE.Group();
 const body=new THREE.Mesh(new THREE.BoxGeometry(3.2,.85,5.8),new THREE.MeshStandardMaterial({color:'#c84b3d',roughness:.45,metalness:.15}));body.position.y=.85;body.castShadow=true;car.add(body);
 const cabin=new THREE.Mesh(new THREE.BoxGeometry(2.7,.85,3.1),new THREE.MeshStandardMaterial({color:'#314653',roughness:.25,metalness:.2}));cabin.position.set(0,1.58,-.2);cabin.castShadow=true;car.add(cabin);
-const bumperMat=new THREE.MeshStandardMaterial({color:'#202426',roughness:.7});
-for(const x of [-1.55,1.55])for(const z of [-1.95,1.95]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.65,.65,.42,16),new THREE.MeshStandardMaterial({color:'#171919',roughness:.8}));wheel.rotation.z=Math.PI/2;wheel.position.set(x,.65,z);wheel.castShadow=true;car.add(wheel)}
+const wheels=[];
+for(const x of [-1.55,1.55])for(const z of [-1.95,1.95]){
+ const pivot=new THREE.Group();pivot.position.set(x,.65,z);
+ const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.65,.65,.42,16),new THREE.MeshStandardMaterial({color:'#171919',roughness:.8}));
+ wheel.rotation.z=Math.PI/2;wheel.castShadow=true;pivot.add(wheel);wheels.push(pivot);car.add(pivot);
+}
 const headMat=new THREE.MeshStandardMaterial({color:'#fff9d5',emissive:'#fff1aa',emissiveIntensity:.6});
 for(const x of [-1.05,1.05]){const lamp=new THREE.Mesh(new THREE.BoxGeometry(.5,.28,.12),headMat);lamp.position.set(x,.9,-2.91);car.add(lamp)}
 scene.add(car);
